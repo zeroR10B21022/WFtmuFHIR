@@ -69,7 +69,7 @@ def start_smart_auth():
         # Debug info
         st.info(f"🔍 FHIR Base URL: {smart.server.base_uri}")
         st.info(f"🔍 App ID: {smart.app_id}")
-        st.info(f"🔍 Redirect URI: {smart.redirect_uri}")
+        st.info(f"🔍 Redirect URI: {smart.redirect}")
 
         # Try to get authorization URL
         try:

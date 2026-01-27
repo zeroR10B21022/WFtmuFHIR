@@ -208,6 +208,13 @@ def show_login_page():
                 else:
                     st.warning("無法載入患者資料")
             else:
+                # Debug: Show current config
+                from ich_bp_agent.config import smart_config
+                with st.expander("⚙️ 當前配置"):
+                    st.code(f"""FHIR Base URL: {smart_config.fhir_base_url}
+Client ID: {smart_config.client_id}
+Redirect URI: {smart_config.redirect_uri}""")
+
                 # Show login button
                 col_a, col_b = st.columns(2)
                 with col_a:
