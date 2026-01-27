@@ -776,3 +776,17 @@ function formatDateTime(date) {
     const d = new Date(date);
     return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
+
+// ========================================
+// Logout Function
+// ========================================
+function logout() {
+    if (confirm('確定要登出嗎？')) {
+        // Clear session storage
+        sessionStorage.clear();
+        localStorage.clear();
+
+        // Redirect back to launch page
+        window.location.href = 'launch.html';
+    }
+}
