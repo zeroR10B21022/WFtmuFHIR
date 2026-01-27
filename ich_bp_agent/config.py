@@ -105,6 +105,8 @@ class SMARTConfig(BaseSettings):
 
     class Config:
         env_prefix = "SMART_"
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
 class StabilityScoreWeights(BaseSettings):
