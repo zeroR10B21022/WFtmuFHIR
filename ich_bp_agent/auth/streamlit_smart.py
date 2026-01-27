@@ -77,6 +77,10 @@ def start_smart_auth():
 
     Redirects user to authorization URL
     """
+    # Clear any old session state that might have launch tokens
+    if 'launch_token' in st.session_state:
+        del st.session_state['launch_token']
+
     fhir_base_url, launch_token = get_smart_client()
 
     if not fhir_base_url:
@@ -90,6 +94,11 @@ def start_smart_auth():
     # IMPORTANT: Taiwan MOHW uses Provider Standalone Launch
     # DO NOT pass launch token - ignore it even if present
     st.info("📋 Using Provider Standalone Launch (Taiwan MOHW pattern)")
+
+    # Show what FHIR server we're using
+    st.write(f"**FHIR Server:** {fhir_base_url}")
+    if fhir_base_url == "https://hapi.fhir.tw/fhir":
+        st.warning("⚠️ Using default FHIR server. If you need Taiwan MOHW sandbox, update SMART_FHIR_BASE_URL in Streamlit secrets.")
 
     # Start OAuth flow WITHOUT launch token
     auth_url = start_oauth_flow(
@@ -124,10 +133,15 @@ This means NO launch parameter is sent, matching the JavaScript client.""")
             from urllib.parse import urlparse, parse_qs
             parsed = urlparse(auth_url)
             st.write("**Parameters:**")
-            for key, value in parse_qs(parsed.query).items():
+            params = parse_qs(parsed.query)
+            for key, value in params.items():
                 st.code(f"{key} = {repr(value[0])}")
                 if key == "launch":
+                    st.error(f"❌ LAUNCH PARAMETER FOUND! This should NOT be here!")
                     st.write(f"Launch bytes: {value[0].encode('utf-8')}")
+
+            if "launch" not in params:
+                st.success("✅ No launch parameter (correct for Provider Standalone Launch)")
 
         with st.expander("🔍 Compare with JavaScript"):
             st.info("JavaScript client (Provider Standalone Launch) sends:")
