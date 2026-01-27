@@ -20,7 +20,7 @@ if os.path.exists("ich_bp_agent"):
     sys.path.insert(0, os.getcwd())
 
 from ich_bp_agent.models.patient import ICHPatient, ICHCondition, ICHPhase, ICHLocation
-from ich_bp_agent.models.medication import Medication, MedicationClass, create_norvasc, create_exforge
+from ich_bp_agent.models.medication import Medication, MedicationClass
 from ich_bp_agent.models.stability import StabilityScore, RecommendationType
 from ich_bp_agent.analyzers.stability_analyzer import StabilityAnalyzer, BPReading, parse_bp_from_fhir
 from ich_bp_agent.analyzers.medication_advisor import MedicationAdvisor
@@ -32,8 +32,8 @@ from ich_bp_agent.auth.streamlit_smart import get_smart_client, start_smart_auth
 
 # Page configuration
 st.set_page_config(
-    page_title="ICH 血壓管理系統",
-    page_icon="❤️",
+    page_title="血壓紅黃綠燈",
+    page_icon="🚦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -87,6 +87,21 @@ def init_session_state():
         st.session_state.bp_readings = []
     if "medications" not in st.session_state:
         st.session_state.medications = []
+    # Traffic light thresholds (doctor-configurable)
+    if "traffic_light_thresholds" not in st.session_state:
+        st.session_state.traffic_light_thresholds = {
+            "red_systolic": 160,  # 紅燈：危險，需立即就醫
+            "yellow_systolic": 140,  # 黃燈：需要密切觀察
+            "green_systolic": 120,  # 綠燈：正常
+            "red_diastolic": 100,
+            "yellow_diastolic": 90,
+            "green_diastolic": 80,
+        }
+    # Doctor authentication for settings
+    if "doctor_authenticated" not in st.session_state:
+        st.session_state.doctor_authenticated = False
+    if "doctor_password" not in st.session_state:
+        st.session_state.doctor_password = "doctor123"  # Default password, can be changed
 
 
 def load_demo_data():
@@ -114,9 +129,20 @@ def load_demo_data():
         physician_name="陳醫師",
     )
 
-    # Create demo medications
-    norvasc = create_norvasc(patient.patient_id, "5mg")
-    exforge = create_exforge(patient.patient_id, "160/5mg")
+    # Create demo medications (generic blood pressure medications)
+    from datetime import date
+    demo_med = Medication(
+        medication_id="med-demo-001",
+        patient_id=patient.patient_id,
+        name="降血壓藥物",
+        generic_name="Antihypertensive",
+        drug_class=MedicationClass.CCB,
+        current_dose="5mg",
+        frequency="每日一次",
+        timing="早上",
+        start_date=date(2024, 10, 1),
+        is_active=True,
+    )
 
     # Load demo BP readings from sample file
     bp_readings = []
@@ -135,7 +161,27 @@ def load_demo_data():
     if not bp_readings:
         bp_readings = generate_demo_bp_readings(patient.patient_id)
 
-    return patient, [norvasc, exforge], bp_readings
+    return patient, [demo_med], bp_readings
+
+
+def get_traffic_light_category(systolic: int, diastolic: int) -> tuple:
+    """
+    Determine traffic light category based on BP reading
+    Returns: (category, emoji, chinese_name, description)
+    """
+    thresholds = st.session_state.traffic_light_thresholds
+
+    # Check for red light (dangerous)
+    if systolic >= thresholds["red_systolic"] or diastolic >= thresholds["red_diastolic"]:
+        return ("red", "🔴", "紅燈", "危險，需立即就醫")
+
+    # Check for yellow light (caution)
+    elif systolic >= thresholds["yellow_systolic"] or diastolic >= thresholds["yellow_diastolic"]:
+        return ("yellow", "🟡", "黃燈", "需要密切觀察")
+
+    # Green light (normal)
+    else:
+        return ("green", "🟢", "綠燈", "正常範圍")
 
 
 def generate_demo_bp_readings(patient_id: str, days: int = 14) -> list:
@@ -167,8 +213,8 @@ def generate_demo_bp_readings(patient_id: str, days: int = 14) -> list:
 
 def show_login_page():
     """Display login page"""
-    st.markdown('<h1 class="main-header">🏥 ICH 血壓管理系統</h1>', unsafe_allow_html=True)
-    st.markdown("### SMART on FHIR 應用程式")
+    st.markdown('<h1 class="main-header">🚦 血壓紅黃綠燈</h1>', unsafe_allow_html=True)
+    st.markdown("### 智能血壓監測與管理系統")
     st.markdown("---")
 
     col1, col2 = st.columns([1, 1])
@@ -250,16 +296,16 @@ Redirect URI: {smart_config.redirect_uri}""")
     with col2:
         st.markdown("#### 關於此應用程式")
         st.markdown("""
-        本系統用於腦出血 (ICH) 患者的血壓藥物管理：
+        血壓紅黃綠燈系統用於智能血壓監測與管理：
+
+        - 🚦 **紅黃綠燈分級** - 視覺化血壓狀態
+          - 🔴 **紅燈**: 危險，需立即就醫
+          - 🟡 **黃燈**: 需要密切觀察
+          - 🟢 **綠燈**: 正常範圍
 
         - 📊 **血壓監測** - 追蹤每日血壓趨勢
-        - 📈 **穩定度評分** - 評估血壓控制情況
-        - 💊 **調藥建議** - 智能建議減量時機
-        - 🛡️ **安全護欄** - 防止危險操作
-
-        **支援藥物**：
-        - Norvasc (脈優) - Amlodipine
-        - Exforge (易安穩) - Valsartan/Amlodipine
+        - 💊 **用藥管理** - 支援所有降血壓藥物
+        - 🛡️ **安全護欄** - 防止危險情況
         """)
 
 
@@ -284,18 +330,20 @@ def show_patient_dashboard():
         patient.target_diastolic,
     )
 
-    # Check latest BP for alerts
+    # Check latest BP for traffic light alerts
     if bp_readings:
         latest_bp = max(bp_readings, key=lambda x: x.timestamp)
-        alert_message = guardrails.get_alert_message(latest_bp)
-        if alert_message:
-            alert_level = guardrails.get_alert_level(latest_bp)
-            if alert_level == "emergency":
-                st.error(f"🚨 {alert_message}")
-            elif alert_level == "warning":
-                st.warning(f"⚠️ {alert_message}")
-            else:
-                st.info(f"ℹ️ {alert_message}")
+        category, emoji, chinese, description = get_traffic_light_category(
+            latest_bp.systolic, latest_bp.diastolic
+        )
+
+        # Show traffic light alert
+        if category == "red":
+            st.error(f"{emoji} **紅燈警示**: {description} - 收縮壓 {latest_bp.systolic} / 舒張壓 {latest_bp.diastolic} mmHg")
+            st.error("⚠️ **建議立即就醫或聯繫您的醫師**")
+        elif category == "yellow":
+            st.warning(f"{emoji} **黃燈提醒**: {description} - 收縮壓 {latest_bp.systolic} / 舒張壓 {latest_bp.diastolic} mmHg")
+            st.info("💡 請密切監測血壓變化，並注意用藥情況")
 
     # Metrics row
     col1, col2, col3, col4 = st.columns(4)
@@ -321,16 +369,18 @@ def show_patient_dashboard():
             st.metric(label="最新血壓", value="--/--")
 
     with col2:
-        if not stability_score.insufficient_data:
-            category_emoji = {"excellent": "🌟", "good": "👍", "fair": "⚠️", "poor": "🔴"}
-            emoji = category_emoji.get(stability_score.category, "")
+        if bp_readings:
+            latest = max(bp_readings, key=lambda x: x.timestamp)
+            category, emoji, chinese, description = get_traffic_light_category(
+                latest.systolic, latest.diastolic
+            )
             st.metric(
-                label="穩定度分數",
-                value=f"{stability_score.score:.0f}/100",
-                delta=f"{emoji} {stability_score.category_chinese}",
+                label="血壓狀態",
+                value=f"{emoji} {chinese}",
+                delta=description,
             )
         else:
-            st.metric(label="穩定度分數", value="資料不足")
+            st.metric(label="血壓狀態", value="資料不足")
 
     with col3:
         if stability_score.components:
@@ -390,31 +440,68 @@ def show_patient_dashboard():
                 )
                 st.session_state.bp_readings.append(new_reading)
 
-                # Check for alerts
-                alert = guardrails.get_alert_message(new_reading)
-                if alert:
-                    st.warning(alert)
+                # Check traffic light category
+                category, emoji, chinese, description = get_traffic_light_category(systolic, diastolic)
+                st.success(f"✅ 血壓記錄成功！")
+
+                if category == "red":
+                    st.error(f"{emoji} {chinese}: {description}")
+                elif category == "yellow":
+                    st.warning(f"{emoji} {chinese}: {description}")
                 else:
-                    st.success("血壓記錄成功！")
+                    st.success(f"{emoji} {chinese}: {description}")
+
                 st.rerun()
 
     with col_right:
-        # Stability Gauge
-        st.subheader("📊 穩定度評估")
-        if not stability_score.insufficient_data:
-            gauge_fig = create_stability_gauge(stability_score.score)
-            st.plotly_chart(gauge_fig, use_container_width=True)
+        # Traffic Light Status
+        st.subheader("🚦 血壓紅黃綠燈")
+        if bp_readings:
+            latest = max(bp_readings, key=lambda x: x.timestamp)
+            category, emoji, chinese, description = get_traffic_light_category(
+                latest.systolic, latest.diastolic
+            )
 
-            # Component breakdown
-            if stability_score.components:
-                st.markdown("**評分組成**")
-                components = stability_score.components
-                st.progress(components.target_achievement_score / 40, text=f"目標達成: {components.target_achievement_rate:.0f}%")
-                st.progress(components.variability_score / 30, text=f"穩定性: CV {components.variability_coefficient:.1f}%")
-                st.progress(components.hypotension_score / 20, text=f"低血壓安全: {components.hypotension_events} 次事件")
-                st.progress(components.trend_score / 10, text=f"趨勢: {components.trend_direction.value}")
+            # Display large traffic light indicator
+            st.markdown(f"""
+            <div style="text-align: center; padding: 20px; background-color: #f0f2f6; border-radius: 10px;">
+                <div style="font-size: 80px;">{emoji}</div>
+                <div style="font-size: 32px; font-weight: bold; margin-top: 10px;">{chinese}</div>
+                <div style="font-size: 18px; color: #666; margin-top: 10px;">{description}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Show recent BP distribution
+            st.markdown("---")
+            st.markdown("**近期血壓分布**")
+
+            # Count readings in each category
+            recent_readings = sorted(bp_readings, key=lambda x: x.timestamp)[-14:]  # Last 14 readings
+            red_count = 0
+            yellow_count = 0
+            green_count = 0
+
+            for reading in recent_readings:
+                cat, _, _, _ = get_traffic_light_category(reading.systolic, reading.diastolic)
+                if cat == "red":
+                    red_count += 1
+                elif cat == "yellow":
+                    yellow_count += 1
+                else:
+                    green_count += 1
+
+            total = len(recent_readings)
+            st.markdown(f"🔴 紅燈: {red_count} 次 ({red_count/total*100:.0f}%)")
+            st.progress(red_count / total if total > 0 else 0)
+
+            st.markdown(f"🟡 黃燈: {yellow_count} 次 ({yellow_count/total*100:.0f}%)")
+            st.progress(yellow_count / total if total > 0 else 0)
+
+            st.markdown(f"🟢 綠燈: {green_count} 次 ({green_count/total*100:.0f}%)")
+            st.progress(green_count / total if total > 0 else 0)
+
         else:
-            st.info("需要至少 7 筆血壓資料才能計算穩定度")
+            st.info("尚無血壓資料")
 
         # Medication Recommendation
         st.subheader("💊 調藥建議")
@@ -439,7 +526,7 @@ def show_patient_dashboard():
 def show_sidebar():
     """Display sidebar navigation"""
     with st.sidebar:
-        st.title("🏥 ICH 血壓管理")
+        st.title("🚦 血壓紅黃綠燈")
 
         if st.session_state.authenticated:
             patient = st.session_state.patient
@@ -584,34 +671,138 @@ def show_settings():
     """Display settings page"""
     st.markdown('<h1 class="main-header">⚙️ 設定</h1>', unsafe_allow_html=True)
 
-    st.markdown("### 血壓目標設定")
-    st.info("血壓目標由醫師設定，如需調整請聯繫您的主治醫師")
+    # Traffic Light Thresholds Configuration
+    st.markdown("### 🚦 紅黃綠燈閾值設定")
 
+    # Doctor Authentication
+    if not st.session_state.doctor_authenticated:
+        st.warning("🔒 此功能僅限醫師使用，請輸入密碼以解鎖設定")
+
+        with st.form("doctor_login"):
+            password = st.text_input("醫師密碼", type="password", placeholder="請輸入密碼")
+            col_a, col_b = st.columns([1, 3])
+            with col_a:
+                login_submit = st.form_submit_button("解鎖設定", type="primary")
+
+            if login_submit:
+                if password == st.session_state.doctor_password:
+                    st.session_state.doctor_authenticated = True
+                    st.success("✅ 驗證成功！正在載入設定...")
+                    st.rerun()
+                else:
+                    st.error("❌ 密碼錯誤，請重試")
+
+        st.info("💡 預設密碼：doctor123")
+        st.markdown("---")
+
+        # Show current thresholds (read-only) for reference
+        st.markdown("#### 當前閾值設定（僅供查看）")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("🔴 紅燈 - 收縮壓", f"≥ {st.session_state.traffic_light_thresholds['red_systolic']} mmHg")
+            st.metric("🟡 黃燈 - 收縮壓", f"≥ {st.session_state.traffic_light_thresholds['yellow_systolic']} mmHg")
+        with col2:
+            st.metric("🔴 紅燈 - 舒張壓", f"≥ {st.session_state.traffic_light_thresholds['red_diastolic']} mmHg")
+            st.metric("🟡 黃燈 - 舒張壓", f"≥ {st.session_state.traffic_light_thresholds['yellow_diastolic']} mmHg")
+
+        return
+
+    # Doctor is authenticated, show full settings
+    st.success("🔓 醫師模式已啟用")
+
+    col_lock, col_pwd = st.columns([3, 1])
+    with col_lock:
+        if st.button("🔒 鎖定設定", type="secondary"):
+            st.session_state.doctor_authenticated = False
+            st.rerun()
+    with col_pwd:
+        with st.popover("🔑 更改密碼"):
+            new_password = st.text_input("新密碼", type="password", key="new_pwd")
+            if st.button("儲存新密碼"):
+                if new_password and len(new_password) >= 6:
+                    st.session_state.doctor_password = new_password
+                    st.success("✅ 密碼已更新")
+                else:
+                    st.error("❌ 密碼長度至少 6 個字元")
+
+    st.markdown("---")
+    st.info("醫師可以根據患者情況調整血壓分級閾值")
+
+    with st.form("traffic_light_settings"):
+        st.markdown("#### 🔴 紅燈 - 危險，需立即就醫")
+        col1, col2 = st.columns(2)
+        with col1:
+            red_sys = st.number_input(
+                "收縮壓 ≥ (mmHg)",
+                min_value=140,
+                max_value=200,
+                value=st.session_state.traffic_light_thresholds["red_systolic"],
+                step=5,
+                key="red_sys_input"
+            )
+        with col2:
+            red_dia = st.number_input(
+                "舒張壓 ≥ (mmHg)",
+                min_value=90,
+                max_value=120,
+                value=st.session_state.traffic_light_thresholds["red_diastolic"],
+                step=5,
+                key="red_dia_input"
+            )
+
+        st.markdown("#### 🟡 黃燈 - 需要密切觀察")
+        col3, col4 = st.columns(2)
+        with col3:
+            yellow_sys = st.number_input(
+                "收縮壓 ≥ (mmHg)",
+                min_value=120,
+                max_value=180,
+                value=st.session_state.traffic_light_thresholds["yellow_systolic"],
+                step=5,
+                key="yellow_sys_input"
+            )
+        with col4:
+            yellow_dia = st.number_input(
+                "舒張壓 ≥ (mmHg)",
+                min_value=70,
+                max_value=110,
+                value=st.session_state.traffic_light_thresholds["yellow_diastolic"],
+                step=5,
+                key="yellow_dia_input"
+            )
+
+        st.markdown("#### 🟢 綠燈 - 正常範圍")
+        st.info(f"收縮壓 < {yellow_sys} mmHg 且 舒張壓 < {yellow_dia} mmHg")
+
+        submitted = st.form_submit_button("儲存設定", type="primary")
+        if submitted:
+            # Validate thresholds
+            if red_sys <= yellow_sys:
+                st.error("❌ 紅燈閾值必須高於黃燈閾值")
+            elif red_dia <= yellow_dia:
+                st.error("❌ 紅燈舒張壓閾值必須高於黃燈閾值")
+            else:
+                # Save thresholds
+                st.session_state.traffic_light_thresholds = {
+                    "red_systolic": red_sys,
+                    "yellow_systolic": yellow_sys,
+                    "green_systolic": 120,
+                    "red_diastolic": red_dia,
+                    "yellow_diastolic": yellow_dia,
+                    "green_diastolic": 80,
+                }
+                st.success("✅ 閾值設定已儲存")
+                st.rerun()
+
+    st.markdown("---")
+
+    # Blood Pressure Target Settings (read-only reference)
+    st.markdown("### 血壓目標範圍（參考）")
     patient = st.session_state.patient
+    st.info(f"收縮壓目標：{patient.target_systolic[0]}-{patient.target_systolic[1]} mmHg")
+    st.info(f"舒張壓目標：{patient.target_diastolic[0]}-{patient.target_diastolic[1]} mmHg")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.number_input(
-            "收縮壓下限",
-            value=patient.target_systolic[0],
-            disabled=True,
-        )
-        st.number_input(
-            "收縮壓上限",
-            value=patient.target_systolic[1],
-            disabled=True,
-        )
-    with col2:
-        st.number_input(
-            "舒張壓下限",
-            value=patient.target_diastolic[0],
-            disabled=True,
-        )
-        st.number_input(
-            "舒張壓上限",
-            value=patient.target_diastolic[1],
-            disabled=True,
-        )
+    st.markdown("---")
 
     st.markdown("### 通知設定")
     st.checkbox("啟用血壓異常通知", value=True)
