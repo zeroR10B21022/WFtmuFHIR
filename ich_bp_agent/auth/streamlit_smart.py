@@ -40,7 +40,6 @@ def get_smart_client() -> Optional[client.FHIRClient]:
             'app_id': smart_config.client_id or 'ich_bp_app',
             'api_base': iss,  # Use ISS from launch
             'redirect_uri': smart_config.redirect_uri,
-            'launch_token': launch,  # Include launch token
         }
         st.info(f"🚀 EHR Launch detected: {iss}")
     else:
@@ -108,6 +107,14 @@ def start_smart_auth():
             auth_url = smart.authorize_url
 
             if auth_url:
+                # If EHR Launch, manually add the launch parameter to the URL
+                if is_ehr_launch and hasattr(st.session_state, 'launch_token'):
+                    launch_token = st.session_state.launch_token
+                    # Add launch parameter to auth URL
+                    separator = '&' if '?' in auth_url else '?'
+                    auth_url = f"{auth_url}{separator}launch={launch_token}"
+                    st.info(f"🔍 Added launch parameter to authorization URL")
+
                 if is_ehr_launch:
                     # EHR Launch: auto-redirect immediately
                     st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
