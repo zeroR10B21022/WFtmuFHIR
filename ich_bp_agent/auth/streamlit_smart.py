@@ -98,23 +98,42 @@ def start_smart_auth():
         st.success("✅ Authorization URL generated successfully!")
 
         # Debug information
-        with st.expander("🔍 Debug: OAuth Configuration"):
+        with st.expander("🔍 Debug: OAuth Configuration", expanded=True):
             st.code(f"""FHIR Base URL: {fhir_base_url}
 Client ID: {smart_config.client_id or 'demo_client'}
 Redirect URI: {smart_config.redirect_uri}
 Has Launch Token: {bool(launch_token)}
+Launch Token Value: {repr(launch_token)}
+Launch Token Type: {type(launch_token).__name__}
+Launch Token Length: {len(launch_token) if launch_token else 0}
 Scope: {scope}""")
 
-        with st.expander("🔍 Debug: Authorization URL"):
+        with st.expander("🔍 Debug: Authorization URL", expanded=True):
             st.code(auth_url)
+            st.write("URL Length:", len(auth_url))
 
-        # Auto-redirect to authorization server
-        st.info("Redirecting to authorization server...")
-        st.markdown(f'<meta http-equiv="refresh" content="1; url={auth_url}">',
-                   unsafe_allow_html=True)
+            # Parse and show each parameter
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(auth_url)
+            st.write("**Parameters:**")
+            for key, value in parse_qs(parsed.query).items():
+                st.code(f"{key} = {repr(value[0])}")
+                if key == "launch":
+                    st.write(f"Launch bytes: {value[0].encode('utf-8')}")
 
-        # Also show manual link
-        st.markdown(f"If not redirected automatically, [click here]({auth_url})")
+        with st.expander("🔍 Compare with JavaScript"):
+            st.info("JavaScript client would send:")
+            st.code(f"""response_type=code
+client_id={smart_config.client_id or 'demo_client'}
+scope={scope + (' launch' if launch_token else '')}
+redirect_uri={smart_config.redirect_uri}
+aud={fhir_base_url}
+state=[random]
+{('launch=' + str(launch_token)) if launch_token else '(no launch parameter)'}""")
+
+        # DON'T auto-redirect - let user review first
+        st.warning("⚠️ Review the debug information above before clicking the link below")
+        st.markdown(f"[Click here to authorize]({auth_url})")
     else:
         st.error("❌ Failed to generate authorization URL")
         st.info(f"Attempted FHIR server: {fhir_base_url}")

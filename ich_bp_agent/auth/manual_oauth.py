@@ -78,6 +78,12 @@ def build_authorization_url(
     Returns:
         Complete authorization URL
     """
+    # Validate and clean launch parameter (must be non-empty string)
+    if launch:
+        launch = str(launch).strip()
+        if not launch or launch == "None":
+            launch = None
+
     # Add "launch" to scope if launch token exists (matching fhirclient.js)
     if launch and "launch" not in scope:
         scope = scope + " launch"
@@ -93,8 +99,14 @@ def build_authorization_url(
         f"state={quote(state, safe='')}"
     ]
 
-    # Add launch parameter if present
+    # Add launch parameter ONLY if it's a valid non-empty string
     if launch:
+        # Log for debugging
+        try:
+            import streamlit as st
+            st.write(f"DEBUG: Adding launch parameter: {repr(launch)}, bytes: {launch.encode('utf-8')}")
+        except:
+            pass
         redirect_params.append(f"launch={quote(launch, safe='')}")
 
     return f"{authorize_url}?{'&'.join(redirect_params)}"
