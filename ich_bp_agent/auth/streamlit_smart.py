@@ -20,7 +20,7 @@ def get_smart_client() -> Optional[client.FHIRClient]:
     """
     Get or create SMART FHIR client for Streamlit app
 
-    Handles OAuth flow with query parameters from SMART launch
+    Handles both EHR Launch (with iss & launch params) and OAuth callback
     """
     # Initialize session state
     if 'smart_client' not in st.session_state:
@@ -29,12 +29,27 @@ def get_smart_client() -> Optional[client.FHIRClient]:
     # Check for OAuth callback with code
     query_params = st.query_params
 
+    # Check for EHR Launch parameters
+    iss = query_params.get('iss')
+    launch = query_params.get('launch')
+
     # Configure SMART client
-    settings = {
-        'app_id': smart_config.client_id or 'ich_bp_app',
-        'api_base': smart_config.fhir_base_url,
-        'redirect_uri': smart_config.redirect_uri,
-    }
+    if iss:
+        # EHR Launch: use iss from launch parameter
+        settings = {
+            'app_id': smart_config.client_id or 'ich_bp_app',
+            'api_base': iss,  # Use ISS from launch
+            'redirect_uri': smart_config.redirect_uri,
+            'launch_token': launch,  # Include launch token
+        }
+        st.info(f"🚀 EHR Launch detected: {iss}")
+    else:
+        # Standalone launch: use configured FHIR base URL
+        settings = {
+            'app_id': smart_config.client_id or 'ich_bp_app',
+            'api_base': smart_config.fhir_base_url,
+            'redirect_uri': smart_config.redirect_uri,
+        }
 
     # Create client
     smart = client.FHIRClient(settings=settings)
@@ -45,6 +60,13 @@ def get_smart_client() -> Optional[client.FHIRClient]:
         session = requests.Session()
         session.verify = False
         smart.server.session = session
+
+    # If we have launch parameters, prepare to authorize
+    if iss and launch:
+        # Save launch params to session
+        st.session_state.launch_iss = iss
+        st.session_state.launch_token = launch
+        # Don't clear query params yet, fhirclient needs them
 
     # Check if we have authorization code in query params
     if 'code' in query_params:
@@ -78,24 +100,31 @@ def start_smart_auth():
     smart = get_smart_client()
 
     if smart:
-        # Debug info
-        st.info(f"🔍 FHIR Base URL: {smart.server.base_uri}")
-        st.info(f"🔍 App ID: {smart.app_id}")
-        st.info(f"🔍 Redirect URI: {smart.redirect}")
+        # Check if this is an EHR launch (has launch parameters in session)
+        is_ehr_launch = hasattr(st.session_state, 'launch_iss') and st.session_state.launch_iss
 
         # Try to get authorization URL
         try:
             auth_url = smart.authorize_url
 
             if auth_url:
-                # Show link to user
-                st.markdown(f"### Please authorize the app")
-                st.markdown(f"[Click here to login with FHIR server]({auth_url})")
-                st.info("After logging in, you will be redirected back to this app.")
+                if is_ehr_launch:
+                    # EHR Launch: auto-redirect immediately
+                    st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
+                               unsafe_allow_html=True)
+                else:
+                    # Standalone Launch: show debug info and link
+                    st.info(f"🔍 FHIR Base URL: {smart.server.base_uri}")
+                    st.info(f"🔍 App ID: {smart.app_id}")
+                    st.info(f"🔍 Redirect URI: {smart.redirect}")
 
-                # Or auto-redirect
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
-                           unsafe_allow_html=True)
+                    st.markdown(f"### Please authorize the app")
+                    st.markdown(f"[Click here to login with FHIR server]({auth_url})")
+                    st.info("After logging in, you will be redirected back to this app.")
+
+                    # Auto-redirect
+                    st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
+                               unsafe_allow_html=True)
             else:
                 st.error("❌ Could not generate authorization URL")
                 st.warning("The FHIR server may not support SMART on FHIR OAuth.")

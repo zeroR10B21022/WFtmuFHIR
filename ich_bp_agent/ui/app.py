@@ -479,8 +479,28 @@ def main():
     """Main application entry point"""
     init_session_state()
 
-    # Check for OAuth callback
+    # Check for EHR Launch parameters
     query_params = st.query_params
+    iss = query_params.get('iss')
+    launch = query_params.get('launch')
+
+    if iss and launch and 'code' not in query_params:
+        # EHR Launch detected - automatically start authorization
+        st.info("🚀 SMART EHR Launch 已偵測到")
+        st.info(f"FHIR 伺服器: {iss}")
+        st.info("正在啟動 OAuth 授權...")
+
+        # Get SMART client with launch parameters
+        smart_client = get_smart_client()
+
+        if smart_client:
+            # Start authorization
+            start_smart_auth()
+        else:
+            st.error("無法初始化 SMART 客戶端")
+        return
+
+    # Check for OAuth callback
     if 'code' in query_params:
         # Handle OAuth callback
         smart_client = get_smart_client()
