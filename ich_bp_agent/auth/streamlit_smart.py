@@ -8,7 +8,12 @@ from fhirclient.models.patient import Patient
 from fhirclient.models.observation import Observation
 from typing import Optional, Dict
 import httpx
+import requests
+import urllib3
 from ..config import smart_config
+
+# Disable SSL warnings for sandbox/test servers
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def get_smart_client() -> Optional[client.FHIRClient]:
@@ -33,6 +38,13 @@ def get_smart_client() -> Optional[client.FHIRClient]:
 
     # Create client
     smart = client.FHIRClient(settings=settings)
+
+    # Disable SSL verification for sandbox/test servers
+    # WARNING: Only use this for development/testing, not production!
+    if smart.server:
+        session = requests.Session()
+        session.verify = False
+        smart.server.session = session
 
     # Check if we have authorization code in query params
     if 'code' in query_params:
@@ -180,7 +192,8 @@ def check_smart_support(fhir_base_url: str) -> Dict[str, any]:
     try:
         # Fetch capability statement
         metadata_url = f"{fhir_base_url}/metadata"
-        response = httpx.get(metadata_url, timeout=10.0)
+        # Disable SSL verification for sandbox/test servers
+        response = httpx.get(metadata_url, timeout=10.0, verify=False)
         response.raise_for_status()
 
         capability = response.json()
