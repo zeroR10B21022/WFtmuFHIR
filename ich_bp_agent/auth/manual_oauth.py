@@ -5,7 +5,7 @@ Bypasses fhirclient library to match JavaScript client behavior
 import streamlit as st
 import httpx
 import secrets
-from urllib.parse import urlencode, parse_qs, urlparse
+from urllib.parse import urlencode, parse_qs, urlparse, quote
 from typing import Optional, Dict, Any
 import json
 
@@ -60,10 +60,11 @@ def build_authorization_url(
     redirect_uri: str,
     scope: str,
     state: str,
+    fhir_base_url: str,
     launch: Optional[str] = None
 ) -> str:
     """
-    Build OAuth2 authorization URL
+    Build OAuth2 authorization URL (matching fhirclient.js behavior)
 
     Args:
         authorize_url: Authorization endpoint URL
@@ -71,25 +72,32 @@ def build_authorization_url(
         redirect_uri: Redirect URI after authorization
         scope: OAuth scopes
         state: Random state for CSRF protection
+        fhir_base_url: FHIR server base URL (used for 'aud' parameter)
         launch: Optional launch token for EHR launch
 
     Returns:
         Complete authorization URL
     """
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "scope": scope,
-        "state": state,
-        "aud": authorize_url.split("/auth")[0]  # Audience is the FHIR base URL
-    }
+    # Add "launch" to scope if launch token exists (matching fhirclient.js)
+    if launch and "launch" not in scope:
+        scope = scope + " launch"
 
-    # Add launch parameter for EHR Launch
+    # Build parameters in exact order as fhirclient.js
+    # Using quote() to match JavaScript's encodeURIComponent
+    redirect_params = [
+        f"response_type=code",
+        f"client_id={quote(client_id, safe='')}",
+        f"scope={quote(scope, safe='')}",
+        f"redirect_uri={quote(redirect_uri, safe='')}",
+        f"aud={quote(fhir_base_url, safe='')}",
+        f"state={quote(state, safe='')}"
+    ]
+
+    # Add launch parameter if present
     if launch:
-        params["launch"] = launch
+        redirect_params.append(f"launch={quote(launch, safe='')}")
 
-    return f"{authorize_url}?{urlencode(params)}"
+    return f"{authorize_url}?{'&'.join(redirect_params)}"
 
 
 def exchange_code_for_token(
@@ -213,13 +221,14 @@ def start_oauth_flow(
     st.session_state.oauth_state = state
     st.session_state.fhir_base_url = fhir_base_url
 
-    # Build authorization URL
+    # Build authorization URL (matching fhirclient.js behavior)
     auth_url = build_authorization_url(
         endpoints["authorize_url"],
         client_id,
         redirect_uri,
         scope,
         state,
+        fhir_base_url,  # Pass FHIR base URL for 'aud' parameter
         launch
     )
 

@@ -80,8 +80,9 @@ def start_smart_auth():
         st.error("FHIR base URL not available")
         return
 
-    # Configure scope (matching JavaScript client)
-    scope = "openid fhirUser patient/Patient.read patient/Observation.read patient/Observation.write patient/Condition.read patient/MedicationRequest.read patient/MedicationAdministration.read launch/patient"
+    # Configure scope (matching JavaScript client exactly)
+    # Note: "launch" is added automatically by build_authorization_url if launch token exists
+    scope = "openid fhirUser patient/Patient.read patient/Observation.read patient/Observation.write patient/Condition.read patient/MedicationRequest.read patient/MedicationAdministration.read"
 
     # Start OAuth flow
     auth_url = start_oauth_flow(
