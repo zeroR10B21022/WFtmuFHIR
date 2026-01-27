@@ -6,7 +6,8 @@ import streamlit as st
 from fhirclient import client
 from fhirclient.models.patient import Patient
 from fhirclient.models.observation import Observation
-from typing import Optional
+from typing import Optional, Dict
+import httpx
 from ..config import smart_config
 
 
@@ -65,20 +66,37 @@ def start_smart_auth():
     smart = get_smart_client()
 
     if smart:
-        # Get authorization URL
-        auth_url = smart.authorize_url
+        # Debug info
+        st.info(f"🔍 FHIR Base URL: {smart.server.base_uri}")
+        st.info(f"🔍 App ID: {smart.app_id}")
+        st.info(f"🔍 Redirect URI: {smart.redirect_uri}")
 
-        if auth_url:
-            # Show link to user
-            st.markdown(f"### Please authorize the app")
-            st.markdown(f"[Click here to login with FHIR server]({auth_url})")
-            st.info("After logging in, you will be redirected back to this app.")
+        # Try to get authorization URL
+        try:
+            auth_url = smart.authorize_url
 
-            # Or auto-redirect
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
-                       unsafe_allow_html=True)
-        else:
-            st.error("Could not generate authorization URL")
+            if auth_url:
+                # Show link to user
+                st.markdown(f"### Please authorize the app")
+                st.markdown(f"[Click here to login with FHIR server]({auth_url})")
+                st.info("After logging in, you will be redirected back to this app.")
+
+                # Or auto-redirect
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
+                           unsafe_allow_html=True)
+            else:
+                st.error("❌ Could not generate authorization URL")
+                st.warning("The FHIR server may not support SMART on FHIR OAuth.")
+
+                # Show what we tried
+                with st.expander("🔧 Debug Information"):
+                    st.write("The fhirclient library couldn't find OAuth endpoints.")
+                    st.write(f"Looking for endpoints at: {smart.server.base_uri}/metadata")
+                    st.write("The server's capability statement should include OAuth URIs.")
+
+        except Exception as e:
+            st.error(f"❌ Error getting authorization URL: {e}")
+            st.write(f"Server: {smart.server.base_uri}")
 
 
 def get_patient_data():
@@ -143,3 +161,71 @@ def is_authenticated() -> bool:
     """Check if user is authenticated with SMART server"""
     smart = st.session_state.get('smart_client')
     return smart is not None and smart.ready if smart else False
+
+
+def check_smart_support(fhir_base_url: str) -> Dict[str, any]:
+    """
+    Check if a FHIR server supports SMART on FHIR
+
+    Args:
+        fhir_base_url: The FHIR server base URL
+
+    Returns:
+        Dictionary with:
+        - supported: bool - whether SMART is supported
+        - authorize_url: str or None
+        - token_url: str or None
+        - error: str or None
+    """
+    try:
+        # Fetch capability statement
+        metadata_url = f"{fhir_base_url}/metadata"
+        response = httpx.get(metadata_url, timeout=10.0)
+        response.raise_for_status()
+
+        capability = response.json()
+
+        # Look for OAuth URIs in capability statement
+        # SMART OAuth URIs are in rest[0].security.extension
+        oauth_uris = None
+
+        if "rest" in capability and len(capability["rest"]) > 0:
+            rest = capability["rest"][0]
+            if "security" in rest and "extension" in rest["security"]:
+                for ext in rest["security"]["extension"]:
+                    if ext.get("url") == "http://fhir-registry.smarthealthit.org/StructureDefinition/oauth-uris":
+                        oauth_uris = ext.get("extension", [])
+                        break
+
+        if oauth_uris:
+            # Extract authorize and token URLs
+            authorize_url = None
+            token_url = None
+
+            for uri in oauth_uris:
+                if uri.get("url") == "authorize":
+                    authorize_url = uri.get("valueUri")
+                elif uri.get("url") == "token":
+                    token_url = uri.get("valueUri")
+
+            return {
+                "supported": True,
+                "authorize_url": authorize_url,
+                "token_url": token_url,
+                "error": None
+            }
+        else:
+            return {
+                "supported": False,
+                "authorize_url": None,
+                "token_url": None,
+                "error": "No SMART OAuth URIs found in capability statement"
+            }
+
+    except Exception as e:
+        return {
+            "supported": False,
+            "authorize_url": None,
+            "token_url": None,
+            "error": str(e)
+        }

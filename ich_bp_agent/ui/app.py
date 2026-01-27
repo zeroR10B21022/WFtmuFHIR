@@ -28,7 +28,7 @@ from ich_bp_agent.safety.guardrails import SafetyGuardrails
 from ich_bp_agent.ui.components.bp_chart import create_bp_trend_chart
 from ich_bp_agent.ui.components.stability_gauge import create_stability_gauge
 from ich_bp_agent.ui.components.recommendation_card import show_recommendation_card
-from ich_bp_agent.auth.streamlit_smart import get_smart_client, start_smart_auth, get_patient_data, is_authenticated
+from ich_bp_agent.auth.streamlit_smart import get_smart_client, start_smart_auth, get_patient_data, is_authenticated, check_smart_support
 
 # Page configuration
 st.set_page_config(
@@ -209,8 +209,36 @@ def show_login_page():
                     st.warning("無法載入患者資料")
             else:
                 # Show login button
-                if st.button("使用 SMART on FHIR 登入", type="primary"):
-                    start_smart_auth()
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("使用 SMART on FHIR 登入", type="primary", use_container_width=True):
+                        start_smart_auth()
+
+                with col_b:
+                    if st.button("🔍 檢查 FHIR 伺服器", type="secondary", use_container_width=True):
+                        with st.spinner("檢查中..."):
+                            from ich_bp_agent.config import smart_config
+                            result = check_smart_support(smart_config.fhir_base_url)
+
+                            if result["supported"]:
+                                st.success("✅ FHIR 伺服器支援 SMART on FHIR")
+                                st.info(f"Authorize URL: {result['authorize_url']}")
+                                st.info(f"Token URL: {result['token_url']}")
+                            else:
+                                st.error("❌ FHIR 伺服器不支援 SMART on FHIR")
+                                st.warning(f"錯誤: {result['error']}")
+                                st.info(f"檢查的伺服器: {smart_config.fhir_base_url}")
+
+                                # Show suggestion
+                                st.markdown("---")
+                                st.markdown("### 建議")
+                                st.markdown("""
+                                確認您的 Streamlit Cloud secrets 中配置了正確的 Taiwan MOHW 沙盒 URL:
+                                ```
+                                [smart]
+                                SMART_FHIR_BASE_URL = "https://thas.mohw.gov.tw/v/r4/sim/YOUR_ISS_URL/fhir"
+                                ```
+                                """)
 
     with col2:
         st.markdown("#### 關於此應用程式")
