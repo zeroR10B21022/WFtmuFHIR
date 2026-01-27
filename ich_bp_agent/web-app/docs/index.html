@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICH 血壓管理系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f7fa;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background: white;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+        }
+        .stability-gauge {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .stability-score {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .stability-label {
+            font-size: 18px;
+            text-align: center;
+            color: #666;
+        }
+        .bp-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .bp-label {
+            color: #666;
+            font-size: 14px;
+        }
+        .recommendation-card {
+            border-left: 4px solid;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .recommendation-reduce {
+            border-color: var(--success-color);
+            background-color: #e8f5e9;
+        }
+        .recommendation-maintain {
+            border-color: #2196f3;
+            background-color: #e3f2fd;
+        }
+        .recommendation-visit {
+            border-color: var(--warning-color);
+            background-color: #fff3e0;
+        }
+        .recommendation-urgent {
+            border-color: var(--danger-color);
+            background-color: #ffebee;
+        }
+        .bp-input-form {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .tab-content {
+            padding: 20px 0;
+        }
+        .alert-bp {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .trend-up { color: var(--danger-color); }
+        .trend-down { color: var(--success-color); }
+        .trend-stable { color: #2196f3; }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="text-center">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h4 class="mt-3">正在載入患者資料...</h4>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand">
+                <span style="font-size: 24px;">&#10084;</span>
+                <span id="patientName">血壓管理系統</span>
+            </span>
+            <span class="text-white" id="ichPhase"></span>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Alert Area -->
+        <div id="alertArea"></div>
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button">
+                    儀表板
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="input-tab" data-bs-toggle="tab" data-bs-target="#input" type="button">
+                    輸入血壓
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button">
+                    歷史紀錄
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabContent">
+            <!-- Dashboard Tab -->
+            <div class="tab-pane fade show active" id="dashboard" role="tabpanel">
+                <div class="row">
+                    <!-- Latest BP -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">最新血壓</div>
+                            <div class="card-body text-center">
+                                <div class="bp-value" id="latestBP">--/--</div>
+                                <div class="bp-label">mmHg</div>
+                                <small class="text-muted" id="latestBPTime">--</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Average BP -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">14天平均</div>
+                            <div class="card-body text-center">
+                                <div class="bp-value" id="avgBP">--/--</div>
+                                <div class="bp-label">mmHg</div>
+                                <small id="bpTrend">--</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target Range -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">目標範圍</div>
+                            <div class="card-body text-center">
+                                <div class="bp-value" id="targetRange">120-140</div>
+                                <div class="bp-label">收縮壓 mmHg</div>
+                                <small class="text-muted" id="targetAchievement">--</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Stability Score -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">穩定度評分</div>
+                            <div class="card-body">
+                                <div class="stability-score" id="stabilityScore">--</div>
+                                <div class="stability-label" id="stabilityCategory">資料載入中...</div>
+                                <hr>
+                                <div class="small">
+                                    <div class="d-flex justify-content-between">
+                                        <span>目標達成</span>
+                                        <span id="scoreTarget">--/40</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>變異穩定</span>
+                                        <span id="scoreVariability">--/30</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>低血壓安全</span>
+                                        <span id="scoreHypotension">--/20</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>趨勢穩定</span>
+                                        <span id="scoreTrend">--/10</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendation -->
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">調藥建議</div>
+                            <div class="card-body" id="recommendationArea">
+                                <p class="text-muted">正在分析...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BP Chart -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">血壓趨勢圖</div>
+                            <div class="card-body">
+                                <canvas id="bpChart" height="100"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Tab -->
+            <div class="tab-pane fade" id="input" role="tabpanel">
+                <div class="row justify-content-center">
+                    <div class="col-md-6">
+                        <div class="bp-input-form">
+                            <h4 class="mb-4">記錄血壓</h4>
+                            <div class="mb-3">
+                                <label class="form-label">收縮壓 (Systolic)</label>
+                                <input type="number" class="form-control form-control-lg" id="inputSystolic"
+                                       placeholder="例如: 130" min="60" max="250">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">舒張壓 (Diastolic)</label>
+                                <input type="number" class="form-control form-control-lg" id="inputDiastolic"
+                                       placeholder="例如: 80" min="40" max="150">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">測量時間</label>
+                                <input type="datetime-local" class="form-control" id="inputTime">
+                            </div>
+                            <button class="btn btn-primary btn-lg w-100" onclick="submitBPReading()">
+                                儲存紀錄
+                            </button>
+                            <div id="submitResult" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">血壓紀錄</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>日期時間</th>
+                                        <th>收縮壓</th>
+                                        <th>舒張壓</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTable">
+                                    <tr><td colspan="4" class="text-center">載入中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

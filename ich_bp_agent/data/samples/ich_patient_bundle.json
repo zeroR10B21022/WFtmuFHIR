@@ -1,0 +1,358 @@
+{
+  "resourceType": "Bundle",
+  "id": "bundle-ich-patient-demo",
+  "meta": {
+    "profile": [
+      "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Bundle-twcore"
+    ]
+  },
+  "type": "collection",
+  "timestamp": "2024-10-16T10:00:00+08:00",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:patient-ich-001",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-ich-001",
+        "meta": {
+          "profile": [
+            "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Patient-twcore"
+          ]
+        },
+        "identifier": [
+          {
+            "use": "official",
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "code": "MR",
+                  "display": "Medical Record Number"
+                }
+              ]
+            },
+            "system": "https://hospital.example.tw/patient-id",
+            "value": "ICH20241001"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "usual",
+            "text": "王大明"
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "0912345678",
+            "use": "mobile"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1958-03-15",
+        "address": [
+          {
+            "use": "home",
+            "text": "台北市信義區松仁路100號",
+            "city": "台北市",
+            "district": "信義區",
+            "postalCode": "110"
+          }
+        ],
+        "contact": [
+          {
+            "relationship": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v2-0131",
+                    "code": "N",
+                    "display": "Next-of-Kin"
+                  }
+                ],
+                "text": "配偶"
+              }
+            ],
+            "name": {
+              "text": "李美華"
+            },
+            "telecom": [
+              {
+                "system": "phone",
+                "value": "0923456789"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:condition-ich-001",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-ich-001",
+        "meta": {
+          "profile": [
+            "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Condition-twcore"
+          ]
+        },
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed",
+              "display": "Confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "problem-list-item",
+                "display": "Problem List Item"
+              }
+            ]
+          }
+        ],
+        "severity": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "6736007",
+              "display": "Moderate"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10-cm",
+              "code": "I61.0",
+              "display": "Nontraumatic intracerebral hemorrhage in hemisphere, subcortical"
+            }
+          ],
+          "text": "腦出血 - 基底核"
+        },
+        "subject": {
+          "reference": "Patient/patient-ich-001",
+          "display": "王大明"
+        },
+        "onsetDateTime": "2024-10-01",
+        "recordedDate": "2024-10-01T08:30:00+08:00",
+        "note": [
+          {
+            "text": "高血壓性腦出血，位於左側基底核，出血量約15ml。急性期血壓控制目標 SBP < 140 mmHg。"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:condition-htn-001",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-htn-001",
+        "meta": {
+          "profile": [
+            "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Condition-twcore"
+          ]
+        },
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10-cm",
+              "code": "I10",
+              "display": "Essential (primary) hypertension"
+            }
+          ],
+          "text": "高血壓"
+        },
+        "subject": {
+          "reference": "Patient/patient-ich-001",
+          "display": "王大明"
+        },
+        "onsetDateTime": "2015-01-01",
+        "note": [
+          {
+            "text": "長期高血壓病史約10年，過去血壓控制不規則"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:med-norvasc-001",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-norvasc-001",
+        "meta": {
+          "profile": [
+            "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/MedicationRequest-twcore"
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "329528",
+              "display": "Amlodipine 5 MG Oral Tablet"
+            }
+          ],
+          "text": "Norvasc 5mg (脈優)"
+        },
+        "subject": {
+          "reference": "Patient/patient-ich-001",
+          "display": "王大明"
+        },
+        "authoredOn": "2024-10-01T10:00:00+08:00",
+        "requester": {
+          "display": "陳醫師"
+        },
+        "reasonReference": [
+          {
+            "reference": "Condition/condition-ich-001",
+            "display": "腦出血"
+          }
+        ],
+        "dosageInstruction": [
+          {
+            "text": "每日一次，早上服用",
+            "timing": {
+              "repeat": {
+                "frequency": 1,
+                "period": 1,
+                "periodUnit": "d",
+                "when": ["MORN"]
+              }
+            },
+            "route": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "26643006",
+                  "display": "Oral route"
+                }
+              ]
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 5,
+                  "unit": "mg",
+                  "system": "http://unitsofmeasure.org",
+                  "code": "mg"
+                }
+              }
+            ]
+          }
+        ],
+        "note": [
+          {
+            "text": "腦出血後血壓控制用藥，待穩定後可考慮減量"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:med-exforge-001",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-exforge-001",
+        "meta": {
+          "profile": [
+            "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/MedicationRequest-twcore"
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "603148",
+              "display": "Valsartan 160 MG / Amlodipine 5 MG Oral Tablet"
+            }
+          ],
+          "text": "Exforge 160/5mg (易安穩)"
+        },
+        "subject": {
+          "reference": "Patient/patient-ich-001",
+          "display": "王大明"
+        },
+        "authoredOn": "2024-10-01T10:00:00+08:00",
+        "requester": {
+          "display": "陳醫師"
+        },
+        "reasonReference": [
+          {
+            "reference": "Condition/condition-ich-001",
+            "display": "腦出血"
+          }
+        ],
+        "dosageInstruction": [
+          {
+            "text": "每日一次，晚上服用",
+            "timing": {
+              "repeat": {
+                "frequency": 1,
+                "period": 1,
+                "periodUnit": "d",
+                "when": ["EVE"]
+              }
+            },
+            "route": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "26643006",
+                  "display": "Oral route"
+                }
+              ]
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 1,
+                  "unit": "tablet"
+                }
+              }
+            ]
+          }
+        ],
+        "note": [
+          {
+            "text": "ARB+CCB複方，加強血壓控制"
+          }
+        ]
+      }
+    }
+  ]
+}
