@@ -108,6 +108,10 @@ def start_smart_auth():
             auth_url = smart.authorize_url
 
             if auth_url:
+                # Debug: Show the original authorization URL
+                with st.expander("🔍 Debug: Authorization URL (before launch)"):
+                    st.code(f"Original auth URL: {auth_url}")
+
                 # If EHR Launch, manually add the launch parameter to the URL
                 if is_ehr_launch and hasattr(st.session_state, 'launch_token'):
                     launch_token = st.session_state.launch_token
@@ -125,6 +129,10 @@ def start_smart_auth():
                     separator = '&' if '?' in auth_url else '?'
                     auth_url = f"{auth_url}{separator}launch={encoded_launch}"
                     st.info(f"🔍 Added URL-encoded launch parameter to authorization URL")
+
+                    # Debug: Show final URL
+                    with st.expander("🔍 Debug: Final Authorization URL"):
+                        st.code(f"Final auth URL: {auth_url}")
 
                 if is_ehr_launch:
                     # EHR Launch: auto-redirect immediately
