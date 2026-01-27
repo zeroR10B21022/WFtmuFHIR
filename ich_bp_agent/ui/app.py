@@ -133,7 +133,7 @@ def load_demo_data():
 
     # Create demo medications (generic blood pressure medications)
     demo_med = Medication(
-        medication_id="med-demo-001",
+        id="med-demo-001",
         patient_id=patient.patient_id,
         name="降血壓藥物",
         generic_name="Antihypertensive",
