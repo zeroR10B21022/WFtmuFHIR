@@ -10,6 +10,7 @@ from typing import Optional, Dict
 import httpx
 import requests
 import urllib3
+from urllib.parse import quote
 from ..config import smart_config
 
 # Disable SSL warnings for sandbox/test servers
@@ -110,10 +111,20 @@ def start_smart_auth():
                 # If EHR Launch, manually add the launch parameter to the URL
                 if is_ehr_launch and hasattr(st.session_state, 'launch_token'):
                     launch_token = st.session_state.launch_token
+
+                    # Debug: Show the launch token
+                    with st.expander("🔍 Debug: Launch Token"):
+                        st.code(f"Raw launch token: {launch_token}")
+                        st.code(f"Launch token length: {len(launch_token)}")
+                        st.code(f"Launch token (repr): {repr(launch_token)}")
+
+                    # URL-encode the launch parameter
+                    encoded_launch = quote(launch_token, safe='')
+
                     # Add launch parameter to auth URL
                     separator = '&' if '?' in auth_url else '?'
-                    auth_url = f"{auth_url}{separator}launch={launch_token}"
-                    st.info(f"🔍 Added launch parameter to authorization URL")
+                    auth_url = f"{auth_url}{separator}launch={encoded_launch}"
+                    st.info(f"🔍 Added URL-encoded launch parameter to authorization URL")
 
                 if is_ehr_launch:
                     # EHR Launch: auto-redirect immediately
