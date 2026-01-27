@@ -405,7 +405,15 @@ def show_sidebar():
 
             st.markdown("---")
 
-            if st.button("登出"):
+            if st.button("返回選擇患者", type="secondary", use_container_width=True):
+                # Clear patient data but keep authenticated state
+                st.session_state.authenticated = False
+                st.session_state.patient = None
+                st.session_state.medications = []
+                st.session_state.bp_readings = []
+                st.rerun()
+
+            if st.button("登出", use_container_width=True):
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
