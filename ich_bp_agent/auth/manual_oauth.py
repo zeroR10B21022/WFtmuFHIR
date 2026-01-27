@@ -79,37 +79,40 @@ def build_authorization_url(
         Complete authorization URL
     """
     # Validate and clean launch parameter (must be non-empty string)
+    # For Taiwan MOHW: Provider Standalone Launch does NOT use launch parameter
     if launch:
         launch = str(launch).strip()
         if not launch or launch == "None":
             launch = None
 
-    # Add "launch" to scope if launch token exists (matching fhirclient.js)
-    if launch and "launch" not in scope:
-        scope = scope + " launch"
-
-    # Build parameters in exact order as fhirclient.js
-    # Using quote() to match JavaScript's encodeURIComponent
-    redirect_params = [
-        f"response_type=code",
-        f"client_id={quote(client_id, safe='')}",
-        f"scope={quote(scope, safe='')}",
-        f"redirect_uri={quote(redirect_uri, safe='')}",
-        f"aud={quote(fhir_base_url, safe='')}",
-        f"state={quote(state, safe='')}"
-    ]
+    # Build parameters dictionary (like Python fhirclient)
+    params = {
+        'response_type': 'code',
+        'client_id': client_id,
+        'scope': scope,  # Scope is passed as-is, no "launch" added
+        'redirect_uri': redirect_uri,
+        'aud': fhir_base_url,
+        'state': state
+    }
 
     # Add launch parameter ONLY if it's a valid non-empty string
+    # NOTE: For Provider Standalone Launch, launch should be None
     if launch:
         # Log for debugging
         try:
             import streamlit as st
             st.write(f"DEBUG: Adding launch parameter: {repr(launch)}, bytes: {launch.encode('utf-8')}")
+            st.warning("⚠️ Launch parameter present! Taiwan MOHW uses Provider Standalone Launch (no launch param)")
         except:
             pass
-        redirect_params.append(f"launch={quote(launch, safe='')}")
+        params['launch'] = launch
 
-    return f"{authorize_url}?{'&'.join(redirect_params)}"
+    # Use urlencode like Python fhirclient does
+    # This matches the Python FHIR client behavior more closely
+    from urllib.parse import urlencode as url_encode
+    encoded_params = url_encode(params, doseq=True)
+
+    return f"{authorize_url}?{encoded_params}"
 
 
 def exchange_code_for_token(

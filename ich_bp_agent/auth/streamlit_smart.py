@@ -72,6 +72,9 @@ def start_smart_auth():
     """
     Start SMART on FHIR OAuth flow using manual OAuth implementation
 
+    Taiwan MOHW uses Provider Standalone Launch (NOT EHR Launch)
+    This means NO launch parameter, NO launch scope
+
     Redirects user to authorization URL
     """
     fhir_base_url, launch_token = get_smart_client()
@@ -81,16 +84,20 @@ def start_smart_auth():
         return
 
     # Configure scope (matching JavaScript client exactly)
-    # Note: "launch" is added automatically by build_authorization_url if launch token exists
+    # Provider Standalone Launch - NO "launch" scope
     scope = "openid fhirUser patient/Patient.read patient/Observation.read patient/Observation.write patient/Condition.read patient/MedicationRequest.read patient/MedicationAdministration.read"
 
-    # Start OAuth flow
+    # IMPORTANT: Taiwan MOHW uses Provider Standalone Launch
+    # DO NOT pass launch token - ignore it even if present
+    st.info("📋 Using Provider Standalone Launch (Taiwan MOHW pattern)")
+
+    # Start OAuth flow WITHOUT launch token
     auth_url = start_oauth_flow(
         fhir_base_url,
         smart_config.client_id or 'demo_client',
         smart_config.redirect_uri,
         scope,
-        launch_token
+        None  # Force NO launch token for Provider Standalone Launch
     )
 
     if auth_url:
@@ -99,14 +106,15 @@ def start_smart_auth():
 
         # Debug information
         with st.expander("🔍 Debug: OAuth Configuration", expanded=True):
-            st.code(f"""FHIR Base URL: {fhir_base_url}
+            st.code(f"""Launch Type: Provider Standalone Launch
+FHIR Base URL: {fhir_base_url}
 Client ID: {smart_config.client_id or 'demo_client'}
 Redirect URI: {smart_config.redirect_uri}
-Has Launch Token: {bool(launch_token)}
-Launch Token Value: {repr(launch_token)}
-Launch Token Type: {type(launch_token).__name__}
-Launch Token Length: {len(launch_token) if launch_token else 0}
-Scope: {scope}""")
+Launch Token in URL: {bool(launch_token)} (IGNORED for standalone launch)
+Scope: {scope}
+
+Note: Taiwan MOHW uses Provider Standalone Launch.
+This means NO launch parameter is sent, matching the JavaScript client.""")
 
         with st.expander("🔍 Debug: Authorization URL", expanded=True):
             st.code(auth_url)
@@ -122,14 +130,16 @@ Scope: {scope}""")
                     st.write(f"Launch bytes: {value[0].encode('utf-8')}")
 
         with st.expander("🔍 Compare with JavaScript"):
-            st.info("JavaScript client would send:")
+            st.info("JavaScript client (Provider Standalone Launch) sends:")
             st.code(f"""response_type=code
 client_id={smart_config.client_id or 'demo_client'}
-scope={scope + (' launch' if launch_token else '')}
+scope={scope}
 redirect_uri={smart_config.redirect_uri}
 aud={fhir_base_url}
 state=[random]
-{('launch=' + str(launch_token)) if launch_token else '(no launch parameter)'}""")
+
+NO launch parameter (Provider Standalone Launch)
+NO 'launch' in scope (Provider Standalone Launch)""")
 
         # DON'T auto-redirect - let user review first
         st.warning("⚠️ Review the debug information above before clicking the link below")
