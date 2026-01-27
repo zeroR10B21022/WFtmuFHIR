@@ -135,9 +135,15 @@ def start_smart_auth():
                         st.code(f"Final auth URL: {auth_url}")
 
                 if is_ehr_launch:
-                    # EHR Launch: auto-redirect immediately
-                    st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
-                               unsafe_allow_html=True)
+                    # EHR Launch: show manual link instead of auto-redirect for debugging
+                    st.warning("⚠️ Auto-redirect disabled for debugging")
+                    st.markdown(f"### Click to authorize:")
+                    st.markdown(f"[Authorize with FHIR Server]({auth_url})")
+                    st.info("After clicking, you may see the JSON error at the authorization server")
+
+                    # Temporarily disable auto-redirect
+                    # st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">',
+                    #            unsafe_allow_html=True)
                 else:
                     # Standalone Launch: show debug info and link
                     st.info(f"🔍 FHIR Base URL: {smart.server.base_uri}")
