@@ -5,6 +5,14 @@ from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Dict, Tuple, List, Optional
 from enum import Enum
+import os
+
+# Check if running on Streamlit Cloud
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
 
 
 class ICHPhase(str, Enum):
@@ -78,6 +86,8 @@ class MedicationConfig(BaseSettings):
 class SMARTConfig(BaseSettings):
     """
     SMART on FHIR configuration for Taiwan MOHW Sandbox
+
+    Reads from Streamlit Cloud secrets if available, otherwise falls back to .env
     """
     # FHIR Server
     fhir_base_url: str = "https://hapi.fhir.tw/fhir"
@@ -102,6 +112,15 @@ class SMARTConfig(BaseSettings):
 
     # Token settings
     token_refresh_margin_seconds: int = 300  # Refresh 5 min before expiry
+
+    def __init__(self, **kwargs):
+        # Check for Streamlit Cloud secrets first
+        if HAS_STREAMLIT and hasattr(st, 'secrets') and 'smart' in st.secrets:
+            secrets = st.secrets.smart
+            kwargs.setdefault('fhir_base_url', secrets.get('SMART_FHIR_BASE_URL', kwargs.get('fhir_base_url')))
+            kwargs.setdefault('client_id', secrets.get('SMART_CLIENT_ID', kwargs.get('client_id', '')))
+            kwargs.setdefault('redirect_uri', secrets.get('SMART_REDIRECT_URI', kwargs.get('redirect_uri')))
+        super().__init__(**kwargs)
 
     class Config:
         env_prefix = "SMART_"
