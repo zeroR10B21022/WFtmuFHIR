@@ -106,6 +106,8 @@ def init_session_state():
 
 def load_demo_data():
     """Load demo patient and BP data"""
+    from datetime import date
+
     # Create demo ICH patient
     ich_condition = ICHCondition(
         id="condition-ich-001",
@@ -130,7 +132,6 @@ def load_demo_data():
     )
 
     # Create demo medications (generic blood pressure medications)
-    from datetime import date
     demo_med = Medication(
         medication_id="med-demo-001",
         patient_id=patient.patient_id,
