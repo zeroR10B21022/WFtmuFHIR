@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICH 血壓管理 - 啟動</title>
+    <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .loading {
+            text-align: center;
+            color: white;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading">
+        <div class="spinner"></div>
+        <h2>正在連接 FHIR 伺服器...</h2>
+        <p>請稍候，正在進行授權認證</p>
+    </div>
+
+    <script>
+        // SMART on FHIR OAuth2 Authorization
+        // 使用 Taiwan MOHW Sandbox 或其他 FHIR 伺服器
+        FHIR.oauth2.authorize({
+            // Client ID - 從 URL 參數或使用預設值
+            // 衛服部沙盒註冊後，在沙盒啟動時會自動傳入
+            clientId: new URLSearchParams(window.location.search).get('client_id') || "demo_client",
+
+            // ISS (FHIR Server URL) - 從 URL 參數獲取
+            // 如果是從沙盒啟動，會自動傳入
+            iss: new URLSearchParams(window.location.search).get('iss') ||
+                 "https://thas.mohw.gov.tw/v/r4/sim/WzIslilslilslkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwill0/fhir",
+
+            // 請求的權限範圍 (Provider Standalone Launch)
+            scope: "openid fhirUser patient/Patient.read patient/Observation.read patient/Observation.write patient/Condition.read patient/MedicationRequest.read patient/MedicationAdministration.read",
+
+            // 授權完成後重定向到主頁面
+            redirectUri: "index.html"
+        });
+    </script>
+</body>
+</html>
