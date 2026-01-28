@@ -85,6 +85,19 @@ def build_authorization_url(
         if not launch or launch == "None":
             launch = None
 
+    # Validate redirect_uri format
+    from urllib.parse import urlparse
+    parsed = urlparse(redirect_uri)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Invalid redirect_uri format: {redirect_uri}")
+
+    # Log which redirect URI is being used (for debugging)
+    try:
+        import streamlit as st
+        st.info(f"📍 Using redirect URI: {redirect_uri}")
+    except:
+        pass
+
     # Build parameters dictionary (like Python fhirclient)
     params = {
         'response_type': 'code',

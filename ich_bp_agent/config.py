@@ -97,17 +97,18 @@ class SMARTConfig(BaseSettings):
     client_secret: Optional[str] = None  # For confidential clients
     redirect_uri: str = "http://localhost:8501/callback"
 
-    # SMART scopes
+    # SMART scopes for Provider Standalone Launch
+    # Taiwan MOHW pattern: NO "launch/patient" or "launch" scopes
+    # User selects patient during OAuth flow
     scopes: List[str] = [
+        "openid",
+        "fhirUser",
         "patient/Patient.read",
         "patient/Observation.read",
         "patient/Observation.write",
         "patient/MedicationRequest.read",
         "patient/MedicationAdministration.read",
         "patient/Condition.read",
-        "launch/patient",
-        "openid",
-        "fhirUser",
     ]
 
     # Token settings

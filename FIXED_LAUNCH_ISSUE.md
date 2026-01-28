@@ -113,3 +113,54 @@ Test the app with Taiwan MOHW sandbox. It should now:
 - ✅ Complete OAuth flow successfully
 - ✅ Receive access token and patient context
 - ✅ Allow reading/writing FHIR resources
+
+---
+
+## Update 2026-01-28: Configuration Verification
+
+### Additional Fixes Applied
+
+1. **Added httpx import** to `streamlit_smart.py` - fixes runtime error in `check_smart_support()`
+2. **Updated config.py scopes** - removed "launch/patient" scope for Provider Standalone Launch
+3. **Removed EHR Launch logic** from `app.py` - simplified to Provider Standalone only
+4. **Enhanced debugging** - added configuration verification expander with both redirect URI formats
+5. **Better error messages** - OAuth callback failures now show troubleshooting steps
+
+### Redirect URI Format
+
+Taiwan MOHW may require either format:
+- `https://wftmufhir.streamlit.app/callback` (standard OAuth2)
+- `https://wftmufhir.streamlit.app/` (base URL)
+
+**To test:** Update Streamlit Cloud secrets and try both formats.
+
+The app now displays both formats in the Configuration Verification expander to help identify which format Taiwan MOHW expects.
+
+### Client Registration Checklist
+
+Before OAuth will work, verify:
+1. Client ID is registered with Taiwan MOHW sandbox
+2. Redirect URI exactly matches registration (including/excluding /callback)
+3. Client type is set to "Public" (no client secret for Streamlit app)
+4. Scopes are approved (patient read/write permissions)
+
+### How to Verify Client Registration
+
+1. Log into Taiwan MOHW SMART Sandbox portal
+2. Navigate to "Client Applications" or "App Registration"
+3. Check if `demo_client` exists and is active
+4. Verify redirect URI matches your Streamlit Cloud URL
+5. If not registered, create new client registration with:
+   - **Client Name**: ICH Blood Pressure Management / 血壓紅黃綠燈
+   - **Client Type**: Public (no client secret)
+   - **Redirect URIs**: Both `https://wftmufhir.streamlit.app/callback` and base URL
+   - **Scopes**: All patient-level scopes
+   - **Launch Type**: Provider Standalone Launch
+
+### Files Modified in This Update
+
+- `ich_bp_agent/auth/streamlit_smart.py` - Added httpx import, configuration verification, enhanced errors
+- `ich_bp_agent/config.py` - Removed "launch/patient" scope
+- `ich_bp_agent/ui/app.py` - Removed EHR Launch detection logic
+- `ich_bp_agent/auth/manual_oauth.py` - Added redirect URI validation
+- `.env` - Added configuration comments

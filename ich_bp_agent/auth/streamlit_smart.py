@@ -5,6 +5,7 @@ Uses manual OAuth implementation (bypassing fhirclient)
 import streamlit as st
 from typing import Optional, Dict
 import urllib3
+import httpx
 from ..config import smart_config
 from .manual_oauth import (
     start_oauth_flow,
@@ -47,6 +48,9 @@ def get_smart_client():
         code = query_params.get('code')
         state = query_params.get('state')
 
+        st.write("**OAuth Callback Received:**")
+        st.code(f"Code: {code[:20]}...\nState: {state[:20]}...")
+
         if handle_oauth_callback(
             code,
             state,
@@ -60,6 +64,10 @@ def get_smart_client():
             st.rerun()
         else:
             st.error("❌ OAuth authentication failed")
+            st.error("**Troubleshooting:**")
+            st.write("1. Check redirect URI matches Taiwan MOHW registration")
+            st.write("2. Verify client ID is registered")
+            st.write("3. Check Streamlit Cloud logs for details")
             return None, None
 
     fhir_base_url = st.session_state.fhir_base_url
@@ -112,6 +120,30 @@ def start_smart_auth():
     if auth_url:
         # Show authorization info
         st.success("✅ Authorization URL generated successfully!")
+
+        # Configuration Verification
+        with st.expander("🔧 Configuration Verification", expanded=True):
+            st.write("**Current Configuration:**")
+            st.code(f"""FHIR Base URL: {fhir_base_url}
+Client ID: {smart_config.client_id or 'demo_client'}
+Redirect URI: {smart_config.redirect_uri}
+
+Taiwan MOHW Requirements:
+- Launch Type: Provider Standalone Launch
+- Launch Parameter: None (not sent)
+- Launch Scope: None (not included)""")
+
+            # Show both possible redirect URI formats
+            st.write("**Testing Both Redirect URI Formats:**")
+            base_url = smart_config.redirect_uri.rstrip('/callback')
+            st.info(f"✓ Format 1 (with /callback): {base_url}/callback")
+            st.info(f"✓ Format 2 (base URL): {base_url}")
+            st.warning("⚠️ If OAuth fails, try the other format in Streamlit secrets")
+
+            # Client ID verification reminder
+            if smart_config.client_id in ['', 'demo_client', None]:
+                st.warning("⚠️ Using 'demo_client' - verify this is registered with Taiwan MOHW")
+                st.info("To check: Log into Taiwan MOHW sandbox and verify client registration")
 
         # Debug information
         with st.expander("🔍 Debug: OAuth Configuration", expanded=True):
