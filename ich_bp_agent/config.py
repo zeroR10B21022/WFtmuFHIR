@@ -1,11 +1,12 @@
 """
 Configuration for ICH Blood Pressure Management Agent
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Dict, Tuple, List, Optional
 from enum import Enum
 import os
+from pathlib import Path
 
 # Check if running on Streamlit Cloud
 try:
@@ -56,8 +57,10 @@ class ICHConfig(BaseSettings):
     acute_phase_days: int = 14
     subacute_phase_days: int = 84  # 12 weeks
 
-    class Config:
-        env_prefix = "ICH_BP_"
+    model_config = SettingsConfigDict(
+        env_prefix="ICH_BP_",
+        extra="ignore"
+    )
 
 
 class MedicationConfig(BaseSettings):
@@ -79,8 +82,10 @@ class MedicationConfig(BaseSettings):
     min_days_between_adjustments: int = 14  # Wait at least 2 weeks
     post_reduction_monitoring_days: int = 7  # Close monitoring after reduction
 
-    class Config:
-        env_prefix = "ICH_MED_"
+    model_config = SettingsConfigDict(
+        env_prefix="ICH_MED_",
+        extra="ignore"
+    )
 
 
 class SMARTConfig(BaseSettings):
@@ -114,6 +119,15 @@ class SMARTConfig(BaseSettings):
     # Token settings
     token_refresh_margin_seconds: int = 300  # Refresh 5 min before expiry
 
+    # Pydantic v2 configuration
+    model_config = SettingsConfigDict(
+        env_prefix="SMART_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
     def __init__(self, **kwargs):
         # Check for Streamlit Cloud secrets first
         if HAS_STREAMLIT and hasattr(st, 'secrets') and 'smart' in st.secrets:
@@ -122,11 +136,6 @@ class SMARTConfig(BaseSettings):
             kwargs.setdefault('client_id', secrets.get('SMART_CLIENT_ID', kwargs.get('client_id', '')))
             kwargs.setdefault('redirect_uri', secrets.get('SMART_REDIRECT_URI', kwargs.get('redirect_uri')))
         super().__init__(**kwargs)
-
-    class Config:
-        env_prefix = "SMART_"
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 class StabilityScoreWeights(BaseSettings):
@@ -145,8 +154,10 @@ class StabilityScoreWeights(BaseSettings):
     # Hypotension penalty
     hypotension_penalty_per_event: int = 5  # Points deducted per event
 
-    class Config:
-        env_prefix = "STABILITY_"
+    model_config = SettingsConfigDict(
+        env_prefix="STABILITY_",
+        extra="ignore"
+    )
 
 
 # Global configuration instances
