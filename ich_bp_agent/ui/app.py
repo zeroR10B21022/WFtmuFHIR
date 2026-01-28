@@ -440,6 +440,25 @@ def show_patient_dashboard():
     bp_readings = st.session_state.bp_readings
     medications = st.session_state.medications
 
+    # Validate and filter bp_readings to ensure all have required attributes
+    # This handles potential data inconsistencies from cached sessions
+    valid_readings = []
+    for reading in bp_readings:
+        try:
+            # Check if reading has all required attributes
+            if hasattr(reading, 'timestamp') and hasattr(reading, 'systolic') and hasattr(reading, 'diastolic'):
+                # Ensure source attribute exists (for compatibility)
+                if not hasattr(reading, 'source'):
+                    reading.source = "unknown"
+                valid_readings.append(reading)
+        except Exception:
+            # Skip invalid readings
+            continue
+
+    # Update bp_readings with validated list
+    bp_readings = valid_readings
+    st.session_state.bp_readings = valid_readings
+
     # Header
     st.markdown(f'<h1 class="main-header">❤️ {patient.name} 的血壓管理</h1>', unsafe_allow_html=True)
 
