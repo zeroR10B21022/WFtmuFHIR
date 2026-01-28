@@ -471,4 +471,5 @@ def parse_bp_from_fhir(observation: dict) -> Optional[BPReading]:
         systolic=systolic,
         diastolic=diastolic,
         patient_id=patient_id,
+        source="fhir"
     )

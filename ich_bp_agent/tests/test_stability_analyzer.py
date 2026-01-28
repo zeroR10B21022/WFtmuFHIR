@@ -47,6 +47,7 @@ def create_stable_readings(days: int = 14, base_systolic: int = 125, base_diasto
                 systolic=base_systolic + (day % 3 - 1),  # Small variation
                 diastolic=base_diastolic + (day % 2),
                 patient_id="patient-test-001",
+                source="test"
             ))
     return readings
 
@@ -64,6 +65,7 @@ def create_unstable_readings(days: int = 14) -> list:
                 systolic=130 + random.randint(-20, 20),  # High variability
                 diastolic=85 + random.randint(-10, 10),
                 patient_id="patient-test-001",
+                source="test"
             ))
     return readings
 

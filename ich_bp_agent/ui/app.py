@@ -208,6 +208,7 @@ def generate_demo_bp_readings(patient_id: str, days: int = 14) -> list:
                 systolic=int(base_systolic + random.randint(-5, 5)),
                 diastolic=int(base_diastolic + random.randint(-3, 3)),
                 patient_id=patient_id,
+                source="demo"
             ))
 
     return readings
@@ -561,6 +562,7 @@ def show_patient_dashboard():
                     systolic=systolic,
                     diastolic=diastolic,
                     patient_id=patient.patient_id,
+                    source="manual"
                 )
                 st.session_state.bp_readings.append(new_reading)
 
