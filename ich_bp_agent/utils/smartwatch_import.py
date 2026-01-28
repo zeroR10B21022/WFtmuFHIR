@@ -5,7 +5,7 @@ Handles import of blood pressure data from smartwatch JSON files
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
-from ich_bp_agent.models import BPReading
+from ich_bp_agent.analyzers.stability_analyzer import BPReading
 
 
 def parse_smartwatch_json(file_content: str) -> Dict[str, Any]:
