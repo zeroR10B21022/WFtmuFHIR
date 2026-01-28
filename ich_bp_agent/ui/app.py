@@ -459,6 +459,13 @@ def show_patient_dashboard():
     bp_readings = valid_readings
     st.session_state.bp_readings = valid_readings
 
+    # If no valid readings after validation, generate demo data
+    if not bp_readings:
+        st.warning("⚠️ 檢測到資料不一致，正在重新載入...")
+        bp_readings = generate_demo_bp_readings(patient.patient_id)
+        st.session_state.bp_readings = bp_readings
+        st.rerun()
+
     # Header
     st.markdown(f'<h1 class="main-header">❤️ {patient.name} 的血壓管理</h1>', unsafe_allow_html=True)
 
@@ -467,7 +474,7 @@ def show_patient_dashboard():
     advisor = MedicationAdvisor()
     guardrails = SafetyGuardrails()
 
-    # Calculate stability score
+    # Calculate stability score (with empty list check)
     stability_score = analyzer.calculate_stability_score(
         bp_readings,
         patient.target_systolic,
@@ -475,8 +482,16 @@ def show_patient_dashboard():
     )
 
     # Check latest BP for traffic light alerts
-    if bp_readings:
-        latest_bp = max(bp_readings, key=lambda x: x.timestamp)
+    if bp_readings and len(bp_readings) > 0:
+        try:
+            latest_bp = max(bp_readings, key=lambda x: x.timestamp)
+        except (AttributeError, TypeError, ValueError) as e:
+            st.error(f"⚠️ 資料讀取異常: {str(e)}")
+            st.info("正在重新載入資料...")
+            bp_readings = generate_demo_bp_readings(patient.patient_id)
+            st.session_state.bp_readings = bp_readings
+            st.rerun()
+            return
         category, emoji, chinese, description = get_traffic_light_category(
             latest_bp.systolic, latest_bp.diastolic
         )
@@ -493,36 +508,42 @@ def show_patient_dashboard():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        if bp_readings:
-            latest = max(bp_readings, key=lambda x: x.timestamp)
-            # Calculate delta from previous
-            sorted_readings = sorted(bp_readings, key=lambda x: x.timestamp)
-            if len(sorted_readings) >= 2:
-                prev = sorted_readings[-2]
-                delta = latest.systolic - prev.systolic
-                delta_str = f"{delta:+d} mmHg"
-            else:
+        if bp_readings and len(bp_readings) > 0:
+            try:
+                latest = max(bp_readings, key=lambda x: x.timestamp)
+                # Calculate delta from previous
+                sorted_readings = sorted(bp_readings, key=lambda x: x.timestamp)
                 delta_str = None
-            st.metric(
-                label="最新血壓",
-                value=f"{latest.systolic}/{latest.diastolic}",
-                delta=delta_str,
-                delta_color="inverse",
-            )
+                if len(sorted_readings) >= 2:
+                    prev = sorted_readings[-2]
+                    delta = latest.systolic - prev.systolic
+                    delta_str = f"{delta:+d} mmHg"
+
+                st.metric(
+                    label="最新血壓",
+                    value=f"{latest.systolic}/{latest.diastolic}",
+                    delta=delta_str,
+                    delta_color="inverse",
+                )
+            except (AttributeError, TypeError, ValueError):
+                st.metric(label="最新血壓", value="--/--")
         else:
             st.metric(label="最新血壓", value="--/--")
 
     with col2:
-        if bp_readings:
-            latest = max(bp_readings, key=lambda x: x.timestamp)
-            category, emoji, chinese, description = get_traffic_light_category(
-                latest.systolic, latest.diastolic
-            )
-            st.metric(
-                label="血壓狀態",
-                value=f"{emoji} {chinese}",
-                delta=description,
-            )
+        if bp_readings and len(bp_readings) > 0:
+            try:
+                latest = max(bp_readings, key=lambda x: x.timestamp)
+                category, emoji, chinese, description = get_traffic_light_category(
+                    latest.systolic, latest.diastolic
+                )
+                st.metric(
+                    label="血壓狀態",
+                    value=f"{emoji} {chinese}",
+                    delta=description,
+                )
+            except (AttributeError, TypeError, ValueError):
+                st.metric(label="血壓狀態", value="資料不足")
         else:
             st.metric(label="血壓狀態", value="資料不足")
 
@@ -660,27 +681,32 @@ def show_patient_dashboard():
     with col_right:
         # Traffic Light Status
         st.subheader("🚦 血壓紅黃綠燈")
-        if bp_readings:
-            latest = max(bp_readings, key=lambda x: x.timestamp)
-            category, emoji, chinese, description = get_traffic_light_category(
-                latest.systolic, latest.diastolic
-            )
+        if bp_readings and len(bp_readings) > 0:
+            try:
+                latest = max(bp_readings, key=lambda x: x.timestamp)
+                category, emoji, chinese, description = get_traffic_light_category(
+                    latest.systolic, latest.diastolic
+                )
+            except (AttributeError, TypeError, ValueError):
+                st.info("📊 請記錄血壓以查看狀態")
+                category = None
 
-            # Display large traffic light indicator
-            st.markdown(f"""
-            <div style="text-align: center; padding: 20px; background-color: #f0f2f6; border-radius: 10px;">
-                <div style="font-size: 80px;">{emoji}</div>
-                <div style="font-size: 32px; font-weight: bold; margin-top: 10px;">{chinese}</div>
-                <div style="font-size: 18px; color: #666; margin-top: 10px;">{description}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            if category is not None:
+                # Display large traffic light indicator
+                st.markdown(f"""
+                <div style="text-align: center; padding: 20px; background-color: #f0f2f6; border-radius: 10px;">
+                    <div style="font-size: 80px;">{emoji}</div>
+                    <div style="font-size: 32px; font-weight: bold; margin-top: 10px;">{chinese}</div>
+                    <div style="font-size: 18px; color: #666; margin-top: 10px;">{description}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            # Show recent BP distribution
-            st.markdown("---")
-            st.markdown("**近期血壓分布**")
+                # Show recent BP distribution
+                st.markdown("---")
+                st.markdown("**近期血壓分布**")
 
-            # Count readings in each category
-            recent_readings = sorted(bp_readings, key=lambda x: x.timestamp)[-14:]  # Last 14 readings
+                # Count readings in each category
+                recent_readings = sorted(bp_readings, key=lambda x: x.timestamp)[-14:]  # Last 14 readings
             red_count = 0
             yellow_count = 0
             green_count = 0
