@@ -577,6 +577,65 @@ def show_patient_dashboard():
 
                 st.rerun()
 
+        # Import from Smartwatch
+        st.markdown("---")
+        st.subheader("📱 匯入智慧手錶資料")
+
+        uploaded_file = st.file_uploader(
+            "上傳 JSON 檔案",
+            type=['json'],
+            help="支援包含血壓、心率、血氧等資料的 JSON 格式檔案"
+        )
+
+        if uploaded_file is not None:
+            try:
+                # Read file content
+                file_content = uploaded_file.read().decode('utf-8')
+
+                # Import using utility function
+                from ich_bp_agent.utils.smartwatch_import import import_smartwatch_file
+
+                merged_readings, stats = import_smartwatch_file(
+                    file_content,
+                    st.session_state.bp_readings,
+                    patient.patient_id
+                )
+
+                # Update session state
+                st.session_state.bp_readings = merged_readings
+
+                # Show success message with statistics
+                st.success(f"✅ 成功匯入 {stats['new_records_added']} 筆血壓記錄！")
+
+                # Show detailed statistics
+                with st.expander("📊 匯入統計", expanded=True):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("檔案總記錄", stats['total_records'])
+                    with col2:
+                        st.metric("新增記錄", stats['new_records_added'])
+                    with col3:
+                        st.metric("重複記錄", stats['duplicates_skipped'])
+
+                    if stats['invalid_records'] > 0:
+                        st.warning(f"⚠️ 跳過 {stats['invalid_records']} 筆無效記錄")
+
+                    # Show additional data info
+                    st.info(f"""
+                        **檔案包含的資料：**
+                        - 血壓: {stats['total_records']} 筆
+                        - 心率: {stats['has_heartrate']} 筆
+                        - 血氧: {stats['has_spo2']} 筆
+                    """)
+
+                # Rerun to update dashboard
+                st.rerun()
+
+            except ValueError as e:
+                st.error(f"❌ 檔案格式錯誤: {e}")
+            except Exception as e:
+                st.error(f"❌ 匯入失敗: {e}")
+
     with col_right:
         # Traffic Light Status
         st.subheader("🚦 血壓紅黃綠燈")

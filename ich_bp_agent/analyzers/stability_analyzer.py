@@ -29,6 +29,7 @@ class BPReading:
     systolic: int
     diastolic: int
     patient_id: str = ""
+    source: str = "manual"  # "manual", "fhir", "smartwatch", etc.
 
     @property
     def date(self) -> date:
