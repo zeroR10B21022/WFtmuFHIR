@@ -29,6 +29,7 @@ from ich_bp_agent.ui.components.bp_chart import create_bp_trend_chart
 from ich_bp_agent.ui.components.stability_gauge import create_stability_gauge
 from ich_bp_agent.ui.components.recommendation_card import show_recommendation_card
 from ich_bp_agent.auth.streamlit_smart import get_smart_client, start_smart_auth, get_patient_data, is_authenticated, check_smart_support
+from ich_bp_agent.auth.direct_fhir import connect_direct_fhir, search_patients_direct, get_patient_direct, search_observations_direct
 
 # Page configuration
 st.set_page_config(
@@ -218,13 +219,97 @@ def show_login_page():
     st.markdown("### 智能血壓監測與管理系統")
     st.markdown("---")
 
+    # Check if we have patients to select from (direct FHIR connection)
+    if "available_patients" in st.session_state and st.session_state.available_patients:
+        st.info("✅ 已連接到 FHIR 伺服器，請選擇患者")
+
+        patients = st.session_state.available_patients
+        patient_options = {}
+
+        for p in patients:
+            patient_id = p.get("id", "unknown")
+            name = "Unknown"
+
+            if "name" in p and p["name"]:
+                name_obj = p["name"][0]
+                if "text" in name_obj:
+                    name = name_obj["text"]
+                elif "family" in name_obj or "given" in name_obj:
+                    family = name_obj.get("family", "")
+                    given = " ".join(name_obj.get("given", []))
+                    name = f"{family} {given}".strip()
+
+            patient_options[f"{name} (ID: {patient_id})"] = patient_id
+
+        selected = st.selectbox("選擇患者：", list(patient_options.keys()))
+
+        if st.button("使用此患者", type="primary"):
+            patient_id = patient_options[selected]
+            fhir_url = st.session_state.fhir_base_url
+
+            # Load patient data
+            with st.spinner("正在載入患者資料..."):
+                patient_resource = get_patient_direct(fhir_url, patient_id)
+
+                if patient_resource:
+                    # Create ICHPatient object from FHIR data
+                    name_text = "Test Patient"
+                    if "name" in patient_resource and patient_resource["name"]:
+                        name_obj = patient_resource["name"][0]
+                        if "text" in name_obj:
+                            name_text = name_obj["text"]
+
+                    patient = ICHPatient(
+                        patient_id=patient_id,
+                        name=name_text,
+                        age=65,  # Default
+                        ich_date=date.today() - timedelta(days=30),
+                        ich_location=ICHLocation.BASAL_GANGLIA,
+                        phone="N/A",
+                        physician_name="醫師",
+                    )
+
+                    # Load BP observations
+                    observations = search_observations_direct(fhir_url, patient_id, code="85354-9")
+                    bp_readings = []
+
+                    for obs in observations:
+                        reading = parse_bp_from_fhir(obs)
+                        if reading:
+                            bp_readings.append(reading)
+
+                    # If no BP data, generate demo data
+                    if not bp_readings:
+                        bp_readings = generate_demo_bp_readings(patient_id)
+
+                    # Store in session
+                    st.session_state.authenticated = True
+                    st.session_state.patient = patient
+                    st.session_state.medications = []  # Would load from FHIR if available
+                    st.session_state.bp_readings = bp_readings
+                    st.session_state.selected_patient_id = patient_id
+
+                    # Clear patient selection
+                    del st.session_state.available_patients
+
+                    st.success(f"✅ 已載入患者資料：{name_text}")
+                    st.rerun()
+                else:
+                    st.error("無法載入患者資料")
+
+        if st.button("返回"):
+            del st.session_state.available_patients
+            st.rerun()
+
+        return
+
     col1, col2 = st.columns([1, 1])
 
     with col1:
         st.markdown("#### 登入方式")
         login_method = st.radio(
             "選擇登入方式",
-            ["Demo 模式 (測試)", "SMART on FHIR 登入"],
+            ["Demo 模式 (測試)", "直接連接 FHIR 伺服器 (Taiwan HAPI)", "SMART on FHIR 登入 (需註冊)"],
             label_visibility="collapsed",
         )
 
@@ -237,6 +322,44 @@ def show_login_page():
                 st.session_state.medications = medications
                 st.session_state.bp_readings = bp_readings
                 st.rerun()
+
+        elif login_method == "直接連接 FHIR 伺服器 (Taiwan HAPI)":
+            st.success("✅ 使用台灣 HAPI FHIR 測試伺服器（真實 FHIR 整合）")
+            st.info("此選項直接連接到真實的 FHIR 伺服器，展示完整的 FHIR 整合功能")
+
+            # Show server info
+            fhir_url = "https://twcore.hapi.fhir.tw/fhir"
+            st.code(f"FHIR Server: {fhir_url}")
+
+            if st.button("連接到 FHIR 伺服器", type="primary"):
+                with st.spinner("正在連接..."):
+                    if connect_direct_fhir(fhir_url):
+                        st.success("✅ 已成功連接到 FHIR 伺服器！")
+                        st.info("正在載入測試患者資料...")
+
+                        # Search for test patients
+                        patients = search_patients_direct(fhir_url, count=10)
+
+                        if patients:
+                            st.session_state.available_patients = patients
+                            st.session_state.fhir_connection_type = "direct"
+                            st.rerun()
+                        else:
+                            st.warning("未找到患者資料，切換到 Demo 模式")
+                            patient, medications, bp_readings = load_demo_data()
+                            st.session_state.authenticated = True
+                            st.session_state.patient = patient
+                            st.session_state.medications = medications
+                            st.session_state.bp_readings = bp_readings
+                            st.rerun()
+
+            st.markdown("---")
+            st.markdown("**特點：**")
+            st.markdown("- ✅ 真實 FHIR 伺服器整合")
+            st.markdown("- ✅ 台灣 FHIR 標準格式")
+            st.markdown("- ✅ 無需 OAuth 註冊")
+            st.markdown("- ✅ 即時展示系統功能")
+
         else:
             st.info("使用 SMART on FHIR 連接到衛福部沙盒")
 
